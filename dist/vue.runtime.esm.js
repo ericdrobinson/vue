@@ -524,6 +524,7 @@ var isIOS = (UA && /iphone|ipad|ipod|ios/.test(UA)) || (weexPlatform === 'ios');
 var isChrome = UA && /chrome\/\d+/.test(UA) && !isEdge;
 var isPhantomJS = UA && /phantomjs/.test(UA);
 var isFF = UA && UA.match(/firefox\/(\d+)/);
+var isCEP = inBrowser && isObject(window.__adobe_cep__);
 
 // Firefox has a "watch" function on Object.prototype...
 var nativeWatch = ({}).watch;
@@ -6876,6 +6877,16 @@ function createOnceHandler$1 (event, handler, capture) {
 // safe to exclude.
 var useMicrotaskFix = isUsingMicroTask && !(isFF && Number(isFF[1]) <= 53);
 
+// #10366: CEP <= 9.3.x has a buggy Event.timeStamp implementation. While the
+// issue is restricted to macOS, the fix is OS-agnostic to keep behavioral
+// differences to a minimum.
+var isCEP93orEarlier = isCEP &&
+      (typeof window.__adobe_cep__.getCurrentApiVersion !== 'function' ||
+      (function (maxBadMajor, maxBadMinor) {
+  var version = JSON.parse(window.__adobe_cep__.getCurrentApiVersion());
+  return version.major <= maxBadMajor && version.minor <= maxBadMinor
+})(9, 3));
+
 function add$1 (
   name,
   handler,
@@ -6903,6 +6914,9 @@ function add$1 (
         // #9462 iOS 9 bug: event.timeStamp is 0 after history.pushState
         // #9681 QtWebEngine event.timeStamp is negative value
         e.timeStamp <= 0 ||
+        // #10366 Adobe CEP bug: event.timeStamp is not reliable on macOS for
+        // host applications with CEP versions prior to 9.4.x.
+        isCEP93orEarlier ||
         // #9448 bail if event is fired in another document in a multi-page
         // electron/nw.js app, since event.timeStamp will be using a different
         // starting reference
