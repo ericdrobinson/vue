@@ -6937,6 +6937,13 @@ var isCEP93orEarlier = isCEP &&
   return version.major <= maxBadMajor && version.minor <= maxBadMinor
 })(9, 3));
 
+
+// CEP seems to break frequently. This enables users to opt-out of the
+// microtask fix logic and deal directly with the consequences by declaring
+// a custom `__vue_microtask_fix_optout__` property on the
+// `window.__adobe_cep__` object.
+var isCEPoptOut = isCEP && !!window.__adobe_cep__.__vue_microtask_fix_optout__;
+
 function add$1 (
   name,
   handler,
@@ -6949,7 +6956,7 @@ function add$1 (
   // the solution is simple: we save the timestamp when a handler is attached,
   // and the handler would only fire if the event passed to it was fired
   // AFTER it was attached.
-  if (useMicrotaskFix) {
+  if (useMicrotaskFix && !isCEP93orEarlier && !isCEPoptOut) {
     var attachedTimestamp = currentFlushTimestamp;
     var original = handler;
     handler = original._wrapper = function (e) {
@@ -6964,9 +6971,6 @@ function add$1 (
         // #9462 iOS 9 bug: event.timeStamp is 0 after history.pushState
         // #9681 QtWebEngine event.timeStamp is negative value
         e.timeStamp <= 0 ||
-        // #10366 Adobe CEP bug: event.timeStamp is not reliable on macOS for
-        // host applications with CEP versions prior to 9.4.x.
-        isCEP93orEarlier ||
         // #9448 bail if event is fired in another document in a multi-page
         // electron/nw.js app, since event.timeStamp will be using a different
         // starting reference
